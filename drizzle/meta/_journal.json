@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1766420884006,
+      "tag": "0000_quick_purifiers",
+      "breakpoints": true
+    }
+  ]
+}

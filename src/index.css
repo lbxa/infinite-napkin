@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Crimson Pro", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  
+  --color-ink-900: #0d0d0d;
+  --color-ink-800: #1a1a1a;
+  --color-ink-700: #2d2d2d;
+  --color-ink-600: #404040;
+  --color-ink-500: #595959;
+  --color-ink-400: #737373;
+  --color-ink-300: #a6a6a6;
+  --color-ink-200: #d9d9d9;
+  --color-ink-100: #f2f2f2;
+  --color-ink-50: #fafafa;
+  
+  --color-paper-900: #f5f0e6;
+  --color-paper-800: #f8f4ec;
+  --color-paper-700: #faf7f1;
+  --color-paper-600: #fcfaf6;
+  --color-paper-500: #fdfcfa;
+  
+  --color-accent-gold: #c9a227;
+  --color-accent-rust: #b5493a;
+  --color-accent-emerald: #2d6a4f;
+  --color-accent-navy: #1d3557;
+  
+  --color-vocab-highlight: oklch(0.85 0.12 85);
+  --color-vocab-hover: oklch(0.78 0.14 85);
+}
+
+@layer base {
+  html {
+    @apply antialiased;
+  }
+  
+  body {
+    @apply bg-paper-700 text-ink-800 font-serif min-h-screen;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    @apply bg-ink-900 text-ink-50;
+  }
+}
+
+/* TipTap editor styles */
+.ProseMirror {
+  @apply outline-none min-h-[300px];
+}
+
+.ProseMirror p {
+  @apply mb-4 text-lg leading-relaxed text-ink-800;
+}
+
+.ProseMirror h1 {
+  @apply text-3xl font-bold mb-6 font-sans text-ink-900;
+}
+
+.ProseMirror h2 {
+  @apply text-2xl font-semibold mb-4 font-sans text-ink-900;
+}
+
+.ProseMirror h3 {
+  @apply text-xl font-medium mb-3 font-sans text-ink-900;
+}
+
+@media (prefers-color-scheme: dark) {
+  .ProseMirror p {
+    @apply text-ink-100;
+  }
+  
+  .ProseMirror h1,
+  .ProseMirror h2,
+  .ProseMirror h3 {
+    @apply text-ink-50;
+  }
+}
+
+/* Vocab word highlight */
+[data-vocab-word-id] {
+  @apply font-semibold cursor-pointer transition-colors duration-150;
+  background-color: var(--color-vocab-highlight);
+  border-radius: 2px;
+  padding: 1px 2px;
+  margin: 0 -2px;
+  color: #1a1a1a;
+}
+
+[data-vocab-word-id]:hover {
+  background-color: var(--color-vocab-hover);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-vocab-word-id] {
+    background-color: oklch(0.55 0.12 85);
+    color: #0d0d0d;
+  }
+
+  [data-vocab-word-id]:hover {
+    background-color: oklch(0.6 0.14 85);
+  }
+}
