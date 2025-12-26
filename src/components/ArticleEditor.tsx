@@ -1,21 +1,28 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useEditor, EditorContent, type JSONContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import Underline from '@tiptap/extension-underline';
 import { VocabMark } from '../lib/vocab-mark';
-import { useVocabSelection } from '../hooks/useVocabSelection';
 import { VocabTooltip } from './VocabTooltip';
+import { EditorBubbleMenu } from './EditorBubbleMenu';
 import type { WordData } from '../hooks/useDictionaryLookup';
 import type { DrizzleDb } from '../lib/drizzle';
-import { words } from '../lib/schema';
-import { eq } from 'drizzle-orm';
 
 interface ArticleEditorProps {
   content: JSONContent | null;
   onContentChange: (content: JSONContent) => void;
   db: DrizzleDb | null;
   documentId: number | null;
-  onWordSelect: (wordId: number) => void;
   lookupWord: (wordId: number) => Promise<WordData | null>;
+  updateOverrides: (
+    wordId: number,
+    updates: {
+      customDefinition?: string | null;
+      customPhonetic?: string | null;
+      notes?: string | null;
+    }
+  ) => Promise<void>;
+  onRemoveWord: (wordId: number) => void;
 }
 
 export function ArticleEditor({
@@ -23,8 +30,9 @@ export function ArticleEditor({
   onContentChange,
   db,
   documentId,
-  onWordSelect,
   lookupWord,
+  updateOverrides,
+  onRemoveWord,
 }: ArticleEditorProps) {
   const [hoveredWordId, setHoveredWordId] = useState<number | null>(null);
   const [hoveredElement, setHoveredElement] = useState<HTMLElement | null>(null);
@@ -34,6 +42,7 @@ export function ArticleEditor({
   const editor = useEditor({
     extensions: [
       StarterKit,
+      Underline,
       VocabMark,
     ],
     content: content || undefined,
@@ -41,8 +50,6 @@ export function ArticleEditor({
       onContentChange(editor.getJSON());
     },
   });
-
-  const { selection, clearSelection } = useVocabSelection(editor);
 
   // Update content when it changes externally
   useEffect(() => {
@@ -120,85 +127,35 @@ export function ArticleEditor({
     };
   }, [editor, hoveredWordId, hoverTimeout, lookupWord]);
 
-  const handleMarkAsVocab = useCallback(async () => {
-    if (!editor || !selection || !db || !documentId) return;
-
-    try {
-      // Create word record
-      const now = Date.now();
-      await db.insert(words).values({
-        headword: selection.text,
-        headwordNorm: selection.normalized,
-        documentId,
-        createdAt: new Date(now),
-      });
-
-      // Get the inserted word ID
-      const insertedWords = await db
-        .select()
-        .from(words)
-        .where(eq(words.headwordNorm, selection.normalized))
-        .orderBy(words.id)
-        .limit(1);
-
-      if (insertedWords.length > 0) {
-        const wordId = insertedWords[insertedWords.length - 1].id;
-        
-        // Apply the mark
-        editor
-          .chain()
-          .focus()
-          .setTextSelection({ from: selection.from, to: selection.to })
-          .setVocabMark(wordId)
-          .run();
-
-        clearSelection();
-        onContentChange(editor.getJSON());
-      }
-    } catch (error) {
-      console.error('Error creating vocab word:', error);
-    }
-  }, [editor, selection, db, documentId, clearSelection, onContentChange]);
-
   const handleCloseTooltip = useCallback(() => {
     setHoveredWordId(null);
     setHoveredElement(null);
     setHoveredWordData(null);
   }, []);
 
-  const handleInspect = useCallback(() => {
-    if (hoveredWordId) {
-      onWordSelect(hoveredWordId);
-      handleCloseTooltip();
+  const handleWordDataRefresh = useCallback(async (wordId: number) => {
+    // Refresh the word data after save
+    const data = await lookupWord(wordId);
+    if (data && wordId === hoveredWordId) {
+      setHoveredWordData(data);
     }
-  }, [hoveredWordId, onWordSelect, handleCloseTooltip]);
+  }, [lookupWord, hoveredWordId]);
+
+  const handleRemoveWord = useCallback((wordId: number) => {
+    handleCloseTooltip();
+    onRemoveWord(wordId);
+  }, [handleCloseTooltip, onRemoveWord]);
 
   return (
     <div className="relative">
-      {/* Selection action bar */}
-      {selection && (
-        <div className="mb-4 p-3 bg-accent-gold/10 rounded-lg border border-accent-gold/30 
-          flex items-center justify-between">
-          <span className="text-sm font-sans">
-            Mark "<strong>{selection.text}</strong>" as vocabulary word?
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={clearSelection}
-              className="px-3 py-1.5 text-sm rounded-md bg-ink-100 dark:bg-ink-700 
-                hover:bg-ink-200 dark:hover:bg-ink-600 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleMarkAsVocab}
-              className="px-3 py-1.5 text-sm rounded-md bg-accent-gold text-white 
-                hover:bg-accent-gold/90 transition-colors font-medium"
-            >
-              Add Word
-            </button>
-          </div>
-        </div>
+      {/* Bubble Menu Toolbar */}
+      {editor && (
+        <EditorBubbleMenu
+          editor={editor}
+          db={db}
+          documentId={documentId}
+          onContentChange={onContentChange}
+        />
       )}
 
       {/* Editor */}
@@ -212,7 +169,9 @@ export function ArticleEditor({
         wordData={hoveredWordData}
         referenceElement={hoveredElement}
         onClose={handleCloseTooltip}
-        onInspect={handleInspect}
+        updateOverrides={updateOverrides}
+        onRemoveWord={handleRemoveWord}
+        onWordDataRefresh={handleWordDataRefresh}
       />
     </div>
   );

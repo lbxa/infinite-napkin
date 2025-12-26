@@ -17,6 +17,9 @@ declare module '@tiptap/core' {
 export const VocabMark = Mark.create<VocabMarkOptions>({
   name: 'vocabMark',
 
+  // Prevent the mark from extending when typing at boundaries
+  inclusive: false,
+
   addOptions() {
     return {
       HTMLAttributes: {},

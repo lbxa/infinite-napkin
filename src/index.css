@@ -104,3 +104,85 @@
     background-color: oklch(0.6 0.14 85);
   }
 }
+
+/* Bubble Menu Toolbar */
+.bubble-menu {
+  @apply flex items-center gap-0.5 p-1 rounded-lg shadow-lg;
+  @apply bg-paper-500 border border-ink-200;
+  @apply font-sans z-50;
+  animation: bubble-in 0.15s ease-out;
+}
+
+@media (prefers-color-scheme: dark) {
+  .bubble-menu {
+    @apply bg-ink-800 border-ink-600;
+  }
+}
+
+.bubble-menu-btn {
+  @apply flex items-center justify-center p-1.5 rounded-md;
+  @apply text-ink-600 hover:text-ink-900 hover:bg-ink-100;
+  @apply transition-colors duration-100;
+}
+
+.bubble-menu-btn.is-active {
+  @apply bg-accent-gold/20 text-accent-gold;
+}
+
+.bubble-menu-btn.is-disabled {
+  @apply opacity-40 cursor-not-allowed;
+}
+
+.bubble-menu-btn.is-disabled:hover {
+  @apply bg-transparent text-ink-600;
+}
+
+.bubble-menu-btn-add-word {
+  @apply px-2;
+}
+
+.bubble-menu-btn-add-word:not(.is-disabled) {
+  @apply text-accent-gold hover:bg-accent-gold/15;
+}
+
+@media (prefers-color-scheme: dark) {
+  .bubble-menu-btn {
+    @apply text-ink-300 hover:text-ink-50 hover:bg-ink-700;
+  }
+  
+  .bubble-menu-btn.is-disabled:hover {
+    @apply bg-transparent text-ink-300;
+  }
+}
+
+.bubble-menu-separator {
+  @apply w-px h-5 mx-1;
+  @apply bg-ink-200;
+}
+
+@media (prefers-color-scheme: dark) {
+  .bubble-menu-separator {
+    @apply bg-ink-600;
+  }
+}
+
+@keyframes bubble-in {
+  from { 
+    opacity: 0; 
+    transform: translateY(4px) scale(0.95); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0) scale(1); 
+  }
+}
+
+/* Tooltip animations */
+@keyframes fade-in {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
