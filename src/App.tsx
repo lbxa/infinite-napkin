@@ -1,10 +1,9 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { useDb } from './hooks/useDb';
 import { useDocument } from './hooks/useDocument';
-import { useDictionaryLookup, type WordData } from './hooks/useDictionaryLookup';
+import { useDictionaryLookup } from './hooks/useDictionaryLookup';
 import { TopBar } from './components/TopBar';
 import { ArticleEditor } from './components/ArticleEditor';
-import { WordInspector } from './components/WordInspector';
 import { words, wordOverrides } from './lib/schema';
 import { eq } from 'drizzle-orm';
 import type { JSONContent } from '@tiptap/react';
@@ -14,72 +13,27 @@ function App() {
   const { title, content, isLoading: docLoading, documentId, setTitle, saveContent } = useDocument(db);
   const { lookupWord, updateOverrides, clearCache } = useDictionaryLookup(db);
 
-  const [selectedWordId, setSelectedWordId] = useState<number | null>(null);
-  const [selectedWordData, setSelectedWordData] = useState<WordData | null>(null);
-
-  // Load selected word data
-  useEffect(() => {
-    if (!selectedWordId) return;
-    
-    let cancelled = false;
-    lookupWord(selectedWordId).then((data) => {
-      if (!cancelled) {
-        setSelectedWordData(data);
-      }
-    });
-    
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedWordId, lookupWord]);
-
-
   const handleDbReload = useCallback(async () => {
     clearCache();
     await reinitialize();
   }, [clearCache, reinitialize]);
 
-  const handleWordSelect = useCallback((wordId: number) => {
-    setSelectedWordId(wordId);
-  }, []);
-
-  const handleCloseInspector = useCallback(() => {
-    setSelectedWordId(null);
-    setSelectedWordData(null);
-  }, []);
-
-  const handleSaveOverrides = useCallback(
-    async (updates: {
-      customDefinition?: string | null;
-      customPhonetic?: string | null;
-      notes?: string | null;
-    }) => {
-      if (selectedWordId) {
-        await updateOverrides(selectedWordId, updates);
-        // Refresh word data
-        const updated = await lookupWord(selectedWordId);
-        setSelectedWordData(updated);
-      }
-    },
-    [selectedWordId, updateOverrides, lookupWord]
-  );
-
-  const handleRemoveWord = useCallback(async () => {
-    if (!db || !selectedWordId || !content) return;
+  const handleRemoveWord = useCallback(async (wordId: number) => {
+    if (!db || !content) return;
 
     try {
       // Delete word overrides first
-      await db.delete(wordOverrides).where(eq(wordOverrides.wordId, selectedWordId));
+      await db.delete(wordOverrides).where(eq(wordOverrides.wordId, wordId));
       
       // Delete the word record
-      await db.delete(words).where(eq(words.id, selectedWordId));
+      await db.delete(words).where(eq(words.id, wordId));
 
       // Remove the mark from the document content
       const removeMarkFromContent = (node: JSONContent): JSONContent => {
         if (node.marks) {
           node.marks = node.marks.filter(
             (mark) =>
-              !(mark.type === 'vocabMark' && mark.attrs?.wordId === selectedWordId)
+              !(mark.type === 'vocabMark' && mark.attrs?.wordId === wordId)
           );
           if (node.marks.length === 0) {
             delete node.marks;
@@ -94,13 +48,12 @@ function App() {
       const updatedContent = removeMarkFromContent(JSON.parse(JSON.stringify(content)));
       saveContent(updatedContent);
 
-      // Clear selection and refresh
-      handleCloseInspector();
+      // Refresh cache
       clearCache();
     } catch (error) {
       console.error('Error removing word:', error);
     }
-  }, [db, selectedWordId, content, saveContent, handleCloseInspector, clearCache]);
+  }, [db, content, saveContent, clearCache]);
 
   // Show loading state
   if (dbLoading || docLoading) {
@@ -147,26 +100,20 @@ function App() {
         onDbReload={handleDbReload}
       />
 
-      <div className="flex-1 flex">
-        <main className="flex-1 overflow-y-auto p-8">
-          <div className="max-w-3xl mx-auto bg-paper-500 dark:bg-ink-800 rounded-xl shadow-lg p-8 min-h-150">
+      <div className="flex-1 flex justify-center">
+        <main className="flex-1 max-w-4xl overflow-y-auto p-8">
+          <div className="bg-paper-500 dark:bg-ink-800 rounded-xl shadow-lg p-8 min-h-[600px]">
             <ArticleEditor
               content={content}
               onContentChange={saveContent}
               db={db}
               documentId={documentId}
-              onWordSelect={handleWordSelect}
               lookupWord={lookupWord}
+              updateOverrides={updateOverrides}
+              onRemoveWord={handleRemoveWord}
             />
           </div>
         </main>
-
-        <WordInspector
-          wordData={selectedWordData}
-          onClose={handleCloseInspector}
-          onSave={handleSaveOverrides}
-          onRemoveWord={handleRemoveWord}
-        />
       </div>
     </div>
   );
