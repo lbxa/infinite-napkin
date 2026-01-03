@@ -4,6 +4,8 @@ const DB_NAME = 'vocab-article.db';
 
 let sqlite3: Sqlite3Static | null = null;
 let db: Database | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let opfsPoolUtil: any = null;
 
 type WorkerRequest =
   | { type: 'init'; id: number }
@@ -35,11 +37,15 @@ async function initDatabase(): Promise<string> {
   // Try to use OPFS SAH Pool VFS for persistent storage (requires worker context)
   try {
     if (sqlite3.installOpfsSAHPoolVfs) {
-      const poolUtil = await sqlite3.installOpfsSAHPoolVfs({
-        name: 'opfs-sahpool',
-        initialCapacity: 6,
-      });
-      db = new poolUtil.OpfsSAHPoolDb(`/${DB_NAME}`);
+      // Install the pool only once and reuse it
+      if (!opfsPoolUtil) {
+        opfsPoolUtil = await sqlite3.installOpfsSAHPoolVfs({
+          name: 'opfs-sahpool',
+          initialCapacity: 6,
+          clearOnInit: false, // Explicitly preserve existing data
+        });
+      }
+      db = new opfsPoolUtil.OpfsSAHPoolDb(`/${DB_NAME}`);
       vfsType = 'opfs-sahpool';
       console.log('SQLite worker: initialized with OPFS SAH Pool VFS');
     } else {
@@ -90,14 +96,11 @@ async function importDatabase(data: Uint8Array): Promise<void> {
 
   // Try to use OPFS SAH Pool VFS with deserialization
   try {
-    if (sqlite3.installOpfsSAHPoolVfs) {
-      const poolUtil = await sqlite3.installOpfsSAHPoolVfs({
-        name: 'opfs-sahpool',
-        initialCapacity: 6,
-      });
-      
+    if (opfsPoolUtil) {
+      // Reuse the existing pool utility instead of reinstalling
       // Create a new database and deserialize into it
-      db = new poolUtil.OpfsSAHPoolDb(`/${DB_NAME}`);
+      const opfsDb = new opfsPoolUtil.OpfsSAHPoolDb(`/${DB_NAME}`);
+      db = opfsDb;
       
       // The OPFS SAH Pool doesn't support direct deserialization,
       // so we use a temporary in-memory DB to load the serialized data
@@ -128,7 +131,7 @@ async function importDatabase(data: Uint8Array): Promise<void> {
       
       for (const [sqlStatement] of tables) {
         if (sqlStatement) {
-          db.exec({ sql: sqlStatement as string });
+          opfsDb.exec({ sql: sqlStatement as string });
         }
       }
       
@@ -150,7 +153,7 @@ async function importDatabase(data: Uint8Array): Promise<void> {
           const cols = Object.keys(row);
           const placeholders = cols.map(() => '?').join(', ');
           const colNames = cols.map(c => `"${c}"`).join(', ');
-          db.exec({
+          opfsDb.exec({
             sql: `INSERT INTO "${tableName}" (${colNames}) VALUES (${placeholders})`,
             bind: cols.map(c => row[c]) as BindingSpec,
           });
