@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   useFloating,
   offset,
@@ -15,9 +15,8 @@ import {
 import type { WordData } from '../hooks/useDictionaryLookup';
 
 interface VocabTooltipProps {
-  wordData: WordData | null;
-  referenceElement: HTMLElement | null;
-  onClose: () => void;
+  editorElement: HTMLElement | null;
+  lookupWord: (wordId: number) => Promise<WordData | null>;
   updateOverrides: (
     wordId: number,
     updates: {
@@ -27,22 +26,25 @@ interface VocabTooltipProps {
     }
   ) => Promise<void>;
   onRemoveWord: (wordId: number) => void;
-  onWordDataRefresh: (wordId: number) => void;
 }
 
 type SaveStatus = 'idle' | 'saving' | 'saved';
 
 export function VocabTooltip({
-  wordData,
-  referenceElement,
-  onClose,
+  editorElement,
+  lookupWord,
   updateOverrides,
   onRemoveWord,
-  onWordDataRefresh,
 }: VocabTooltipProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  
+  // Hover state managed internally
+  const [isOpen, setIsOpen] = useState(false);
+  const [referenceElement, setReferenceElement] = useState<HTMLElement | null>(null);
+  const [wordData, setWordData] = useState<WordData | null>(null);
+  const [hoveredWordId, setHoveredWordId] = useState<number | null>(null);
   
   // Local editing state
   const [customDefinition, setCustomDefinition] = useState('');
@@ -50,16 +52,24 @@ export function VocabTooltip({
   const [notes, setNotes] = useState('');
   const [notesExpanded, setNotesExpanded] = useState(false);
   
-  // Track which wordId we're editing to detect changes
-  const currentWordIdRef = useRef<number | null>(null);
-  
-  // Derive open state from props
-  const isOpen = Boolean(referenceElement && wordData);
+  // Helper to initialize form state from word data
+  const initFormState = useCallback((data: WordData) => {
+    setCustomDefinition(data.customDefinition || '');
+    setCustomPhonetic(data.customPhonetic || '');
+    setNotes(data.notes || '');
+    setNotesExpanded(Boolean(data.notes));
+    setSaveStatus('idle');
+  }, []);
 
   const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
     onOpenChange: (open) => {
-      if (!open) onClose();
+      if (!open) {
+        setIsOpen(false);
+        setReferenceElement(null);
+        setWordData(null);
+        setHoveredWordId(null);
+      }
     },
     middleware: [
       offset(8),
@@ -86,18 +96,52 @@ export function VocabTooltip({
   const dismiss = useDismiss(context);
   const { getReferenceProps, getFloatingProps } = useInteractions([hover, dismiss]);
 
-  // Sync reference element with Floating UI
-  useLayoutEffect(() => {
+  // Set reference element for Floating UI when it changes
+  useEffect(() => {
     if (referenceElement) {
       refs.setReference(referenceElement);
     }
   }, [referenceElement, refs]);
 
-  // Apply hover props to the reference element for safePolygon to work
+  // Listen for hover on vocab words in the editor
+  useEffect(() => {
+    if (!editorElement) return;
+
+    const handleMouseOver = async (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const wordElement = target.closest('[data-vocab-word-id]') as HTMLElement | null;
+
+      if (wordElement) {
+        const wordId = parseInt(wordElement.getAttribute('data-vocab-word-id') || '0', 10);
+        if (wordId && wordId !== hoveredWordId) {
+          setHoveredWordId(wordId);
+          setReferenceElement(wordElement);
+          setIsOpen(true);
+          
+          // Load word data and initialize form
+          const data = await lookupWord(wordId);
+          if (data) {
+            initFormState(data);
+          }
+          setWordData(data);
+        }
+      }
+    };
+
+    editorElement.addEventListener('mouseover', handleMouseOver);
+
+    return () => {
+      editorElement.removeEventListener('mouseover', handleMouseOver);
+    };
+  }, [editorElement, hoveredWordId, lookupWord, initFormState]);
+
+  // Apply Floating UI's reference props to the vocab word element for safePolygon to work
   useEffect(() => {
     if (!referenceElement || !isOpen) return;
     
     const props = getReferenceProps();
+    
+    // These handlers enable safePolygon to track cursor movement
     const onMouseLeave = props.onMouseLeave as ((e: MouseEvent) => void) | undefined;
     const onPointerMove = props.onPointerMove as ((e: PointerEvent) => void) | undefined;
     
@@ -110,17 +154,6 @@ export function VocabTooltip({
     };
   }, [referenceElement, isOpen, getReferenceProps]);
 
-  // Sync local state from wordData when word changes
-  useEffect(() => {
-    if (wordData && wordData.wordId !== currentWordIdRef.current) {
-      currentWordIdRef.current = wordData.wordId;
-      setCustomDefinition(wordData.customDefinition || '');
-      setCustomPhonetic(wordData.customPhonetic || '');
-      setNotes(wordData.notes || '');
-      setNotesExpanded(Boolean(wordData.notes));
-      setSaveStatus('idle');
-    }
-  }, [wordData]);
 
   // Debounced auto-save
   const saveChanges = useCallback(async (
@@ -134,14 +167,18 @@ export function VocabTooltip({
     setSaveStatus('saving');
     try {
       await updateOverrides(wordId, updates);
-      onWordDataRefresh(wordId);
+      // Refresh word data after save
+      const data = await lookupWord(wordId);
+      if (data && wordId === hoveredWordId) {
+        setWordData(data);
+      }
       setSaveStatus('saved');
       // Reset to idle after showing "saved"
       setTimeout(() => setSaveStatus('idle'), 1200);
     } catch {
       setSaveStatus('idle');
     }
-  }, [updateOverrides, onWordDataRefresh]);
+  }, [updateOverrides, lookupWord, hoveredWordId]);
 
   const handleFieldChange = useCallback((
     field: 'customDefinition' | 'customPhonetic' | 'notes',
@@ -187,7 +224,14 @@ export function VocabTooltip({
 
   const handleRemove = () => {
     if (wordData) {
-      onRemoveWord(wordData.wordId);
+      const wordId = wordData.wordId;
+      // Close tooltip first
+      setIsOpen(false);
+      setReferenceElement(null);
+      setWordData(null);
+      setHoveredWordId(null);
+      // Then remove word
+      onRemoveWord(wordId);
     }
   };
 
