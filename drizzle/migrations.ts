@@ -4,10 +4,12 @@
 
 import journal from './meta/_journal.json';
 import m0000 from './0000_quick_purifiers.sql?raw';
+import m0001 from './0001_exotic_may_parker.sql?raw';
 
 // Migration SQL files in order
 const migrationSql: Record<string, string> = {
   '0000_quick_purifiers': m0000,
+  '0001_exotic_may_parker': m0001,
 };
 
 export interface Migration {

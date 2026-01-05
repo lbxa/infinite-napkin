@@ -1,20 +1,19 @@
 import { useState } from 'react';
-import { downloadDatabase, triggerFileInput, uploadDatabase } from '../lib/db-io';
+import { Link } from '@tanstack/react-router';
 
 interface TopBarProps {
   title: string;
   onTitleChange: (title: string) => void;
-  onDbReload: () => void;
+  showBackButton?: boolean;
 }
 
 export function TopBar({
   title,
   onTitleChange,
-  onDbReload,
+  showBackButton = false,
 }: TopBarProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(title);
-  const [isImporting, setIsImporting] = useState(false);
 
   const handleTitleClick = () => {
     setEditValue(title);
@@ -26,26 +25,21 @@ export function TopBar({
     setIsEditing(false);
   };
 
-  const handleExport = async () => {
-    await downloadDatabase();
-  };
-
-  const handleImport = () => {
-    triggerFileInput(async (file) => {
-      setIsImporting(true);
-      const success = await uploadDatabase(file);
-      setIsImporting(false);
-      if (success) {
-        onDbReload();
-      } else {
-        alert('Failed to import database. Please check the file format.');
-      }
-    });
-  };
-
   return (
     <header className="bg-paper-600 dark:bg-ink-800 border-b border-ink-200 dark:border-ink-700 px-6 py-4">
-      <div className="max-w-6xl mx-auto flex items-center justify-between">
+      <div className="max-w-6xl mx-auto flex items-center gap-4">
+        {showBackButton && (
+          <Link
+            to="/"
+            className="p-2 rounded-lg hover:bg-ink-100 dark:hover:bg-ink-700 transition-colors"
+            title="Back to Dashboard"
+          >
+            <svg className="w-5 h-5 text-ink-600 dark:text-ink-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+        )}
+
         <div className="flex-1">
           {isEditing ? (
             <input
@@ -65,36 +59,11 @@ export function TopBar({
               onClick={handleTitleClick}
               className="text-2xl font-sans font-semibold text-ink-800 dark:text-ink-50 cursor-text hover:text-accent-gold transition-colors"
             >
-              {title}
+              {title || 'Untitled'}
             </h1>
           )}
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="w-px h-6 bg-ink-200 dark:bg-ink-700" />
-
-          <button
-            onClick={handleExport}
-            className="px-3 py-2 rounded-lg font-sans text-sm font-medium transition-all
-              bg-accent-gold/10 hover:bg-accent-gold/20 cursor-pointer
-              text-accent-gold"
-          >
-            Export
-          </button>
-
-          <button
-            onClick={handleImport}
-            disabled={isImporting}
-            className="px-3 py-2 rounded-lg font-sans text-sm font-medium transition-all
-              bg-accent-rust/10 hover:bg-accent-rust/20 cursor-pointer
-              text-accent-rust disabled:opacity-50"
-          >
-            {isImporting ? 'Importing...' : 'Import'}
-          </button>
         </div>
       </div>
     </header>
   );
 }
-
-

@@ -46,6 +46,14 @@ export const wordOverrides = sqliteTable('word_overrides', {
   index('idx_word_overrides_word_id').on(table.wordId),
 ]);
 
+export const documentStats = sqliteTable('document_stats', {
+  documentId: integer('document_id').primaryKey().references(() => documents.id),
+  snippet: text('snippet'),
+  wordCount: integer('word_count').default(0),
+  vocabCount: integer('vocab_count').default(0),
+  computedAt: integer('computed_at', { mode: 'timestamp' }),
+});
+
 // Type exports for use in the app
 export type Meta = typeof meta.$inferSelect;
 export type Document = typeof documents.$inferSelect;
@@ -56,3 +64,5 @@ export type DictionaryEntry = typeof dictionaryEntries.$inferSelect;
 export type NewDictionaryEntry = typeof dictionaryEntries.$inferInsert;
 export type WordOverride = typeof wordOverrides.$inferSelect;
 export type NewWordOverride = typeof wordOverrides.$inferInsert;
+export type DocumentStats = typeof documentStats.$inferSelect;
+export type NewDocumentStats = typeof documentStats.$inferInsert;

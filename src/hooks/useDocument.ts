@@ -3,48 +3,50 @@ import { eq } from 'drizzle-orm';
 import { documents } from '../lib/schema';
 import type { DrizzleDb } from '../lib/drizzle';
 import type { JSONContent } from '@tiptap/react';
+import { updateDocumentStats } from '../lib/document-stats';
 
 interface UseDocumentResult {
   title: string;
   content: JSONContent | null;
   isLoading: boolean;
-  documentId: number | null;
   setTitle: (title: string) => void;
   saveContent: (content: JSONContent) => void;
 }
 
-export function useDocument(db: DrizzleDb | null): UseDocumentResult {
+export function useDocument(db: DrizzleDb | null, documentId: number): UseDocumentResult {
   const [title, setTitleState] = useState('');
   const [content, setContent] = useState<JSONContent | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [documentId, setDocumentId] = useState<number | null>(null);
 
-  // Load document on mount
+  // Load document by ID
   useEffect(() => {
-    if (!db) return;
+    if (!db || !documentId) return;
 
     const loadDocument = async () => {
+      setIsLoading(true);
       try {
-        const docs = await db.select().from(documents).limit(1);
+        const docs = await db.select().from(documents).where(eq(documents.id, documentId));
         if (docs.length > 0) {
           const doc = docs[0];
-          setDocumentId(doc.id);
           setTitleState(doc.title);
           try {
             setContent(JSON.parse(doc.contentJson));
           } catch {
             setContent(null);
           }
+        } else {
+          setContent(null);
         }
       } catch (e) {
         console.error('Error loading document:', e);
+        setContent(null);
       } finally {
         setIsLoading(false);
       }
     };
 
     loadDocument();
-  }, [db]);
+  }, [db, documentId]);
 
   const setTitle = useCallback(
     (newTitle: string) => {
@@ -67,7 +69,10 @@ export function useDocument(db: DrizzleDb | null): UseDocumentResult {
         db.update(documents)
           .set({ contentJson: JSON.stringify(newContent), updatedAt: new Date() })
           .where(eq(documents.id, documentId))
-          .then(() => {})
+          .then(() => {
+            // Update stats after save
+            updateDocumentStats(db, documentId, newContent);
+          })
           .catch(console.error);
       }
     },
@@ -78,10 +83,7 @@ export function useDocument(db: DrizzleDb | null): UseDocumentResult {
     title,
     content,
     isLoading,
-    documentId,
     setTitle,
     saveContent,
   };
 }
-
-
