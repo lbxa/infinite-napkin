@@ -2,6 +2,7 @@
   "name": "infinite-napkin",
   "private": true,
   "version": "0.0.0",
+  "author": "lbxa",
   "type": "module",
   "scripts": {
     "dev": "vite",
