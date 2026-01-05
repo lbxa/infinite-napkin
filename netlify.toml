@@ -1,0 +1,29 @@
+[build]
+command = "bun run build"
+publish = "dist"
+
+# Required headers for SharedArrayBuffer (needed by SQLite WASM)
+[[headers]]
+for = "/*"
+[headers.values]
+Cross-Origin-Opener-Policy = "same-origin"
+Cross-Origin-Embedder-Policy = "require-corp"
+
+# Ensure WASM files are served with correct MIME type
+[[headers]]
+for = "/*.wasm"
+[headers.values]
+Content-Type = "application/wasm"
+
+# Assets folder WASM files
+[[headers]]
+for = "/assets/*.wasm"
+[headers.values]
+Content-Type = "application/wasm"
+
+# SPA fallback - only if file doesn't exist (force = false)
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
+force = false
