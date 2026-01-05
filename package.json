@@ -16,6 +16,7 @@
     "@floating-ui/react": "^0.27.16",
     "@sqlite.org/sqlite-wasm": "^3.51.1-build2",
     "@tailwindcss/vite": "^4.1.18",
+    "@tanstack/react-router": "^1.145.6",
     "@tiptap/extension-bubble-menu": "^3.14.0",
     "@tiptap/extension-underline": "^3.14.0",
     "@tiptap/pm": "^3.14.0",

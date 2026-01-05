@@ -1,34 +1,30 @@
 import { useCallback } from 'react';
-import { useDb } from './hooks/useDb';
-import { useDocument } from './hooks/useDocument';
-import { useDictionaryLookup } from './hooks/useDictionaryLookup';
-import { TopBar } from './components/TopBar';
-import { ArticleEditor } from './components/ArticleEditor';
-import { words, wordOverrides } from './lib/schema';
+import { useParams, Link } from '@tanstack/react-router';
+import { useDb } from '../hooks/useDb';
+import { useDocument } from '../hooks/useDocument';
+import { useDictionaryLookup } from '../hooks/useDictionaryLookup';
+import { TopBar } from '../components/TopBar';
+import { ArticleEditor } from '../components/ArticleEditor';
+import { words, wordOverrides } from '../lib/schema';
 import { eq } from 'drizzle-orm';
 import type { JSONContent } from '@tiptap/react';
 
-function App() {
+export function DocumentEditorPage() {
+  const { id } = useParams({ from: '/doc/$id' });
   const { db, isLoading: dbLoading, error: dbError, reinitialize } = useDb();
-  const { title, content, isLoading: docLoading, documentId, setTitle, saveContent } = useDocument(db);
+  const documentId = parseInt(id, 10);
+  
+  const { title, content, isLoading: docLoading, setTitle, saveContent } = useDocument(db, documentId);
   const { lookupWord, updateOverrides, clearCache } = useDictionaryLookup(db);
 
-  const handleDbReload = useCallback(async () => {
-    clearCache();
-    await reinitialize();
-  }, [clearCache, reinitialize]);
 
   const handleRemoveWord = useCallback(async (wordId: number) => {
     if (!db || !content) return;
 
     try {
-      // Delete word overrides first
       await db.delete(wordOverrides).where(eq(wordOverrides.wordId, wordId));
-      
-      // Delete the word record
       await db.delete(words).where(eq(words.id, wordId));
 
-      // Remove the mark from the document content
       const removeMarkFromContent = (node: JSONContent): JSONContent => {
         if (node.marks) {
           node.marks = node.marks.filter(
@@ -47,8 +43,6 @@ function App() {
 
       const updatedContent = removeMarkFromContent(JSON.parse(JSON.stringify(content)));
       saveContent(updatedContent);
-
-      // Refresh cache
       clearCache();
     } catch (error) {
       console.error('Error removing word:', error);
@@ -61,7 +55,7 @@ function App() {
       <div className="min-h-screen flex items-center justify-center bg-paper-700 dark:bg-ink-900">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-accent-gold border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="font-sans text-ink-500 dark:text-ink-200">Loading...</p>
+          <p className="font-sans text-ink-500 dark:text-ink-200">Loading document...</p>
         </div>
       </div>
     );
@@ -92,12 +86,33 @@ function App() {
     );
   }
 
+  if (!content) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-paper-700 dark:bg-ink-900">
+        <div className="text-center max-w-md px-4">
+          <h2 className="text-xl font-sans font-semibold mb-2 text-ink-800 dark:text-ink-100">
+            Document not found
+          </h2>
+          <p className="text-ink-500 dark:text-ink-200 mb-4">
+            The document you're looking for doesn't exist.
+          </p>
+          <Link
+            to="/"
+            className="px-4 py-2 rounded-lg bg-accent-emerald text-white hover:bg-accent-emerald/90 transition-colors inline-block"
+          >
+            Back to Dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-paper-700 dark:bg-ink-900">
       <TopBar
         title={title}
         onTitleChange={setTitle}
-        onDbReload={handleDbReload}
+        showBackButton
       />
 
       <div className="flex-1 flex justify-center">
@@ -119,4 +134,3 @@ function App() {
   );
 }
 
-export default App;
